@@ -1,0 +1,55 @@
+services:
+  # ============================================================================
+  # Service Base de données : PostgreSQL
+  # ============================================================================
+  db:
+    image: postgres:${POSTGRES_IMAGE_TAG}
+    container_name: btp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data:rw
+    networks:
+      - btp_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Service Applicatif : Odoo Community
+  # ============================================================================
+  web:
+    image: odoo:${ODOO_IMAGE_TAG}
+    container_name: btp_odoo
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${ODOO_PORT}:8069"
+      - "${ODOO_CHAT_PORT}:8072"
+    environment:
+      HOST: ${HOST}
+      PORT: ${PORT}
+      USER: ${POSTGRES_USER}
+      PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
+      - ./addons/custom:/mnt/extra-addons:rw
+      - ./data/odoo:/var/lib/odoo:rw
+    networks:
+      - btp_network
+
+# ==============================================================================
+# Réseau Docker dédié et isolé
+# ==============================================================================
+networks:
+  btp_network:
+    driver: bridge
+    name: btp_network
